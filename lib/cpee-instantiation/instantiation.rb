@@ -331,9 +331,11 @@ module CPEE
     end #}}}
 
     def self::implementation(opts)
-      opts[:cpee] ||= 'http://localhost:9298/'
-      opts[:self] ||= "http#{opts[:secure] ? 's' : ''}://#{opts[:host]}:#{opts[:port]}/"
-      opts[:cblist] = Redis.new(path: "/tmp/redis.sock", db: 14)
+      opts[:cpee]       ||= 'http://localhost:9298/'
+      opts[:redis_path] ||= '/tmp/redis.sock'
+      opts[:redis_db]   ||= 14
+      opts[:self]       ||= "http#{opts[:secure] ? 's' : ''}://#{opts[:host]}:#{opts[:port]}/"
+      opts[:cblist]       = Redis.new(path: opts[:redis_path], db: opts[:redis_db])
       Proc.new do
         on resource do
           run InstantiateXML, opts[:cpee], true if post 'xmlsimple'

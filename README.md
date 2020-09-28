@@ -17,6 +17,9 @@ or many of the following yaml keys:
  :port: 9250
  :host: cpee.org
  :bind: 127.0.0.1
+ :cpee: http://localhost:9298/
+ :redis_path: /tmp/redis.sock
+ :redis_db: 14
 ```
 
 To use the service try one of the following:

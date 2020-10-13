@@ -128,7 +128,7 @@ module CPEE
       private :handle_starting
       def handle_data(cpee,instance,data) #{{{
         if data && !data.empty?
-          content = XML::Smart.string('<dataelements xmlns="http://cpee.org/ns/properties/2.0">')
+          content = XML::Smart.string('<dataelements xmlns="http://cpee.org/ns/properties/2.0"/>')
           JSON::parse(data).each do |k,v|
             content.root.add(k,v)
           end
@@ -141,7 +141,7 @@ module CPEE
       end #}}}
       def handle_endpoints(cpee,instance,data) #{{{
         if data && !data.empty?
-          content = XML::Smart.string('<endpoints xmlns="http://cpee.org/ns/properties/2.0">')
+          content = XML::Smart.string('<endpoints xmlns="http://cpee.org/ns/properties/2.0"/>')
           JSON::parse(data).each do |k,v|
             content.root.add(k,v)
           end

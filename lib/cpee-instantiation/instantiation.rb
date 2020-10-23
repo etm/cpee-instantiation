@@ -96,7 +96,6 @@ module CPEE
       def handle_waiting(cpee,instance,uuid,behavior,selfurl,cblist) #{{{
         if behavior =~ /^wait/
           condition = behavior.match(/_([^_]+)_/)&.[](1) || 'finished'
-          @headers << Riddl::Header.new('CPEE-CALLBACK','true')
           cb = @h['CPEE_CALLBACK']
 
           if cb
@@ -172,12 +171,14 @@ module CPEE
         if (instance, uuid = load_testset(tdoc,cpee,nil,stream)).first == -1
           @status = 500
         else
-          handle_data cpee, instance, @p[4]&.value if @p[4]&.name == 'init'
-          handle_endpoints cpee, instance, @p[4]&.value if @p[4]&.name == 'endpoints'
-          handle_endpoints cpee, instance, @p[5]&.value if @p[5]&.name == 'endpoints'
+          EM.defer do
+            handle_data cpee, instance, @p[4]&.value if @p[4]&.name == 'init'
+            handle_endpoints cpee, instance, @p[4]&.value if @p[4]&.name == 'endpoints'
+            handle_endpoints cpee, instance, @p[5]&.value if @p[5]&.name == 'endpoints'
 
-          handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
-          handle_starting cpee, instance, @p[0].value
+            handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
+            handle_starting cpee, instance, @p[0].value
+          end
 
           send = {
             'CPEE-INSTANCE' => instance,
@@ -185,6 +186,9 @@ module CPEE
             'CPEE-INSTANCE-UUID' => uuid,
             'CPEE-BEHAVIOR' => @p[0].value
           }
+          if @p[0].value =~ /^wait/
+            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
+          end
           @headers << Riddl::Header.new('CPEE-INSTANTIATION',JSON::generate(send))
           Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
         end
@@ -210,12 +214,14 @@ module CPEE
         if (instance, uuid = load_testset(tdoc,cpee,name,stream)).first == -1
           @status = 500
         else
-          handle_data cpee, instance, @p[2]&.value if @p[2]&.name == 'init'
-          handle_endpoints cpee, instance, @p[2]&.value if @p[2]&.name == 'endpoints'
-          handle_endpoints cpee, instance, @p[3]&.value if @p[3]&.name == 'endpoints'
+          EM.defer do
+            handle_data cpee, instance, @p[2]&.value if @p[2]&.name == 'init'
+            handle_endpoints cpee, instance, @p[2]&.value if @p[2]&.name == 'endpoints'
+            handle_endpoints cpee, instance, @p[3]&.value if @p[3]&.name == 'endpoints'
 
-          handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
-          handle_starting cpee, instance, @p[0].value
+            handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
+            handle_starting cpee, instance, @p[0].value
+          end
 
           send = {
             'CPEE-INSTANCE' => instance,
@@ -223,6 +229,9 @@ module CPEE
             'CPEE-INSTANCE-UUID' => uuid,
             'CPEE-BEHAVIOR' => @p[0].value
           }
+          if @p[0].value =~ /^wait/
+            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
+          end
           @headers << Riddl::Header.new('CPEE-INSTANTIATION',JSON::generate(send))
           Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
         end
@@ -247,9 +256,11 @@ module CPEE
         if (instance, uuid = load_testset(tdoc,cpee)).first == -1
           @status = 500
         else
-          handle_data cpee, instance, @p[data+1]&.value
-          handle_waiting cpee, instance, uuid, behavior, selfurl, cblist
-          handle_starting cpee, instance, behavior
+          EM.defer do
+            handle_data cpee, instance, @p[data+1]&.value
+            handle_waiting cpee, instance, uuid, behavior, selfurl, cblist
+            handle_starting cpee, instance, behavior
+          end
 
           send = {
             'CPEE-INSTANCE' => instance,
@@ -257,6 +268,9 @@ module CPEE
             'CPEE-INSTANCE-UUID' => uuid,
             'CPEE-BEHAVIOR' => behavior
           }
+          if @p[0].value =~ /^wait/
+            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
+          end
           Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
         end
       end
@@ -280,6 +294,9 @@ module CPEE
           handle_data cpee, instance, @p[2]&.value
           handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
           handle_starting cpee, instance, @p[0].value
+          if @p[0].value =~ /^wait/
+            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
+          end
           return Riddl::Parameter::Simple.new("url",cpee + instance)
         end
       end

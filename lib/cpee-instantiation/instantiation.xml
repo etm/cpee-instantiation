@@ -34,7 +34,7 @@
       <parameter name="endpoints" type="string"/>
     </optional>
     <optional>
-      <parameter name="stream" type="string"/>
+      <parameter name="customization" type="string"/>
     </optional>
   </message>
   <message name="url">

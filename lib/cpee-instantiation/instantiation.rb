@@ -30,7 +30,7 @@ module CPEE
     SERVER = File.expand_path(File.join(__dir__,'instantiation.xml'))
 
     module Helpers #{{{
-      def load_testset(tdoc,cpee,name=nil,stream=nil) #{{{
+      def load_testset(tdoc,cpee,name=nil,customization=nil) #{{{
         ins = -1
         uuid = nil
         XML::Smart.string(tdoc) do |doc|
@@ -44,13 +44,13 @@ module CPEE
               e.text = name
             end
           end
-          if stream && !stream.empty?
-            JSON.parse(stream).each do |e|
+          if customization && !customization.empty?
+            JSON.parse(customization).each do |e|
               begin
-                stream = Typhoeus.get e['url']
-                if stream.success?
-                  XML::Smart::string(stream.response_body) do |str|
-                    doc.find("//desc:call[@id=\"#{e['id']}\"]/desc:parameters/desc:stream").each do |ele|
+                customization = Typhoeus.get e['url']
+                if customization.success?
+                  XML::Smart::string(customization.response_body) do |str|
+                    doc.find("//desc:call[@id=\"#{e['id']}\"]/desc:parameters/desc:customization").each do |ele|
                       ele.replace_by str.root
                     end
                   end
@@ -167,8 +167,8 @@ module CPEE
         else
           (@status = 500) && return
         end
-        stream = @p.find{ |e| e.name == 'stream' }&.value
-        if (instance, uuid = load_testset(tdoc,cpee,nil,stream)).first == -1
+        customization = @p.find{ |e| e.name == 'customization' }&.value
+        if (instance, uuid = load_testset(tdoc,cpee,nil,customization)).first == -1
           @status = 500
         else
           EM.defer do
@@ -210,8 +210,8 @@ module CPEE
         else
           (@status = 500) && return
         end
-        stream = @p.find{ |e| e.name == 'stream' }&.value
-        if (instance, uuid = load_testset(tdoc,cpee,name,stream)).first == -1
+        customization = @p.find{ |e| e.name == 'customization' }&.value
+        if (instance, uuid = load_testset(tdoc,cpee,name,customization)).first == -1
           @status = 500
         else
           EM.defer do

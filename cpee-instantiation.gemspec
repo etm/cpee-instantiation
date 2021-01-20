@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name             = "cpee-instantiation"
-  s.version          = "1.0.4"
+  s.version          = "1.0.5"
   s.platform         = Gem::Platform::RUBY
   s.license          = "LGPL-3.0"
   s.summary          = "Subprocess instantiation service for the cloud process execution engine (cpee.org)"

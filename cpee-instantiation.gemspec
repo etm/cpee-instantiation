@@ -23,5 +23,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'riddl', '~> 0.99'
   s.add_runtime_dependency 'json', '~> 2.1'
   s.add_runtime_dependency 'redis', '~> 4.1'
-  s.add_runtime_dependency 'cpee', '~> 1', '>= 1.5'
+  s.add_runtime_dependency 'cpee', '~> 2'
 end

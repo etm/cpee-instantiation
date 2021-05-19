@@ -70,7 +70,7 @@ module CPEE
 
             inp = XML::Smart::string('<properties xmlns="http://cpee.org/ns/properties/2.0"/>')
             inp.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
-            %w{handlerwrapper positions dataelements endpoints attributes description transformation}.each do |item|
+            %w{executionhandler positions dataelements endpoints attributes description transformation}.each do |item|
               ele = doc.find("/*/prop:#{item}")
               inp.root.add(ele.first) if ele.any?
             end

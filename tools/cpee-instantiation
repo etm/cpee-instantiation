@@ -30,7 +30,7 @@ ARGV.options { |opt|
   opt.on("Options:")
   opt.on("--help", "-h", "This text") { puts opt; exit }
 	opt.on("")
-  opt.on(wrap("[DIR]        scaffolds a sample instantiation service. Post a testset to a model to keep going in one operation."))
+  opt.on(wrap("[DIR]             scaffolds a sample instantiation service. Post a testset to a model to keep going in one operation."))
   opt.parse!
 }
 if (ARGV.length != 1)
@@ -40,8 +40,10 @@ else
   p1 = ARGV[0]
 end
 
+insta = "#{curpath}/../server/"
 if !File.exists?(p1)
-  FileUtils.cp_r("#{curpath}/../server/",p1)
+  FileUtils.cp_r(insta,p1)
 else
-  puts 'Directory already exists.'
+  FileUtils.cp_r(Dir.glob(File.join(insta,'*')).delete_if{|e| e =~ /\.conf/ })
+  puts 'Directory already exists, updating ...'
 end

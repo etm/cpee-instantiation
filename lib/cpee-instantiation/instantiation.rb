@@ -36,6 +36,7 @@ module CPEE
         XML::Smart.string(tdoc) do |doc|
           doc.register_namespace 'desc', 'http://cpee.org/ns/description/1.0'
           doc.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
+          doc.register_namespace 'sub', 'http://riddl.org/ns/common-patterns/notifications-producer/2.0'
 
           srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
           res = srv.resource('/')
@@ -75,18 +76,25 @@ module CPEE
               inp.root.add(ele.first) if ele.any?
             end
             res = srv.resource("/#{ins}/properties").put Riddl::Parameter::Complex.new('properties','application/xml',inp.to_s)
-            doc.find('/*/prop:handlers/prop:handler').each do |han|
-              url =  han.attributes['url']
-              inp = 'url=' + URI.encode_www_form_component(url)
-              inp = inp + '&topic=' + han.children.first.attributes['topic']
-              inp = inp + '&' + han.children.first.qname.to_s + '=' + han.children.first.to_s
-              status,body = Riddl::Client::new(cpee+ins+'/notifications/subscriptions/').post(
-                [
-                  Riddl::Parameter::Simple.new('url',han.attributes['url']),
-                  Riddl::Parameter::Simple.new('topic',han.children.first.attributes['topic']),
-                  Riddl::Parameter::Simple.new(han.children.first.qname.to_s,han.children.first.to_s)
-                ]
-              )
+            # TODO new versions
+            doc.find('/*/sub:subscriptions/sub:subscription').each do |s|
+              parts = []
+              if id = s.attributes['id']
+                parts << Riddl::Parameter::Simple.new('id', id)
+              end
+              parts << Riddl::Parameter::Simple.new('url', s.attributes['url'])
+              s.find('sub:topic').each do |t|
+                p s.find('sub:event').map{ |e| e.text }
+                if (evs = t.find('sub:event').map{ |e| e.text }.join(',')).length > 0
+                  parts <<  Riddl::Parameter::Simple.new('topic', t.attributes['id'])
+                  parts <<  Riddl::Parameter::Simple.new('events', evs)
+                end
+                if (vos = t.find('sub:vote').map{ |e| e.text }.join(',')).length > 0
+                  parts <<  Riddl::Parameter::Simple.new('topic', t.attributes['id'])
+                  parts <<  Riddl::Parameter::Simple.new('votes', vos)
+                end
+              end
+              status,body = Riddl::Client::new(cpee+ins+'/notifications/subscriptions/').post parts
             end
           end
         end

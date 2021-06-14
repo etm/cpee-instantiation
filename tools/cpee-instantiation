@@ -44,6 +44,6 @@ insta = "#{curpath}/../server/"
 if !File.exists?(p1)
   FileUtils.cp_r(insta,p1)
 else
-  FileUtils.cp_r(Dir.glob(File.join(insta,'*')).delete_if{|e| e =~ /\.conf/ })
+  FileUtils.cp_r(Dir.glob(File.join(insta,'*')).delete_if{|e| e =~ /\.conf/ },p1,remove_destination: true)
   puts 'Directory already exists, updating ...'
 end

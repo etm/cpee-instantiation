@@ -95,7 +95,7 @@ module CPEE
                 end
               end
               status,body = Riddl::Client::new(cpee+ins+'/notifications/subscriptions/').post parts
-            end
+            end rescue nil # in case just no subs are there
           end
         end
         [ins, uuid]

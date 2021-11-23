@@ -293,19 +293,29 @@ module CPEE
         cblist   = @a[2]
         instance = @p[1].value
 
-        srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-        res = srv.resource("/#{instance}/properties/attributes/uuid")
+        srv = Riddl::Client.new(cpee)
+        res = srv.resource("/#{instance}/properties/attributes/uuid/")
         status, response = res.get
 
         if status >= 200 && status < 300
-          uuid = XML::Smart::string(response.first.value).root.text
+          uuid = response.first.value
           handle_data cpee, instance, @p[2]&.value
           handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
           handle_starting cpee, instance, @p[0].value
+
+          send = {
+            'CPEE-INSTANCE' => instance,
+            'CPEE-INSTANCE-URL' => File.join(cpee,instance),
+            'CPEE-INSTANCE-UUID' => uuid,
+            'CPEE-BEHAVIOR' => @p[0].value
+          }
+
           if @p[0].value =~ /^wait/
             @headers << Riddl::Header.new('CPEE-CALLBACK','true')
           end
-          return Riddl::Parameter::Simple.new("url",cpee + instance)
+          Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
+        else
+          @status = 500
         end
       end
     end #}}}

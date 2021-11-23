@@ -385,7 +385,7 @@ module CPEE
             run InstantiateGit, opts[:cpee], opts[:self], opts[:cblist] if post 'git'
           end
           on resource 'instance' do
-            run HandleInstance, opts[:cpee] if post 'instance'
+            run HandleInstance, opts[:cpee], opts[:self], opts[:cblist] if post 'instance'
           end
           on resource 'callback' do
             on resource do

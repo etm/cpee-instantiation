@@ -84,7 +84,6 @@ module CPEE
               end
               parts << Riddl::Parameter::Simple.new('url', s.attributes['url'])
               s.find('sub:topic').each do |t|
-                p s.find('sub:event').map{ |e| e.text }
                 if (evs = t.find('sub:event').map{ |e| e.text }.join(',')).length > 0
                   parts <<  Riddl::Parameter::Simple.new('topic', t.attributes['id'])
                   parts <<  Riddl::Parameter::Simple.new('events', evs)
@@ -137,7 +136,7 @@ module CPEE
         if data && !data.empty?
           content = XML::Smart.string('<dataelements xmlns="http://cpee.org/ns/properties/2.0"/>')
           JSON::parse(data).each do |k,v|
-            content.root.add(k,v)
+            content.root.add(k,CPEE::ValueHelper::generate(v))
           end
           srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
           res = srv.resource("/#{instance}/properties/dataelements/")

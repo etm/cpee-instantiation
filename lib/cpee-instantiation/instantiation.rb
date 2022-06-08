@@ -167,7 +167,7 @@ module CPEE
           srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
           res = srv.resource("/#{instance}/properties/attributes/")
           status, response = res.patch [
-            Riddl::Parameter::Complex.new('endpoints','text/xml',content.to_s)
+            Riddl::Parameter::Complex.new('attributes','text/xml',content.to_s)
           ]
         end rescue nil
       end #}}}

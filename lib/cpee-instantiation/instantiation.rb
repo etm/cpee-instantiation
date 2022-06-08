@@ -158,6 +158,19 @@ module CPEE
           ]
         end rescue nil
       end #}}}
+      def handle_attributes(cpee,instance,data) #{{{
+        if data && !data.empty?
+          content = XML::Smart.string('<attributes xmlns="http://cpee.org/ns/properties/2.0"/>')
+          JSON::parse(data).each do |k,v|
+            content.root.add(k,v)
+          end
+          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
+          res = srv.resource("/#{instance}/properties/attributes/")
+          status, response = res.patch [
+            Riddl::Parameter::Complex.new('endpoints','text/xml',content.to_s)
+          ]
+        end rescue nil
+      end #}}}
     end #}}}
 
     class InstantiateGit < Riddl::Implementation #{{{
@@ -179,9 +192,15 @@ module CPEE
           @status = 500
         else
           EM.defer do
-            handle_data cpee, instance, @p[4]&.value if @p[4]&.name == 'init'
-            handle_endpoints cpee, instance, @p[4]&.value if @p[4]&.name == 'endpoints'
-            handle_endpoints cpee, instance, @p[5]&.value if @p[5]&.name == 'endpoints'
+            if x = @p.find{ |e| e.name == 'init' }&.value
+              handle_data cpee, instance, x
+            end
+            if x = @p.find{ |e| e.name == 'endpoints' }&.value
+              handle_endpoints cpee, instance, x
+            end
+            if x = @p.find{ |e| e.name == 'attributes' }&.value
+              handle_attributes cpee, instance, x
+            end
 
             handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
             handle_starting cpee, instance, @p[0].value
@@ -222,9 +241,15 @@ module CPEE
           @status = 500
         else
           EM.defer do
-            handle_data cpee, instance, @p[2]&.value if @p[2]&.name == 'init'
-            handle_endpoints cpee, instance, @p[2]&.value if @p[2]&.name == 'endpoints'
-            handle_endpoints cpee, instance, @p[3]&.value if @p[3]&.name == 'endpoints'
+            if x = @p.find{ |e| e.name == 'init' }&.value
+              handle_data cpee, instance, x
+            end
+            if x = @p.find{ |e| e.name == 'endpoints' }&.value
+              handle_endpoints cpee, instance, x
+            end
+            if x = @p.find{ |e| e.name == 'attributes' }&.value
+              handle_attributes cpee, instance, x
+            end
 
             handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
             handle_starting cpee, instance, @p[0].value

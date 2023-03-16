@@ -40,7 +40,7 @@ else
   p1 = ARGV[0]
 end
 
-if !File.exists?(p1)
+if !File.exist?(p1)
   FileUtils.cp_r("#{curpath}/../server/",p1)
 else
   puts 'Directory already exists.'

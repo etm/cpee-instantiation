@@ -38,7 +38,12 @@ module CPEE
               ele.first.text = CPEE::ValueHelper::generate(v)
             else
               ele = tdoc.find("/*/prop:#{what}")
-              ele.first.add(k,CPEE::ValueHelper::generate(v)) if ele.any?
+              ele = if ele.any?
+                ele.first
+              else
+                tdoc.root.add("prop:#{what}")
+              end
+              ele.add(k,CPEE::ValueHelper::generate(v))
             end
           end
         end

@@ -30,65 +30,105 @@ module CPEE
     SERVER = File.expand_path(File.join(__dir__,'instantiation.xml'))
 
     module Helpers #{{{
-      def load_testset(tdoc,cpee,name=nil,customization=nil) #{{{
+      def add_to_testset(tdoc,what,data)
+        if data && !data.empty?
+          JSON::parse(data).each do |k,v|
+            ele = tdoc.find("/*/prop:#{what}/prop:#{k}")
+            if ele.any?
+              ele.first.text = CPEE::ValueHelper::generate(v)
+            else
+              ele = tdoc.find("/*/prop:#{what}")
+              ele = if ele.any?
+                ele.first
+              else
+                tdoc.root.add("prop:#{what}")
+              end
+              ele.add(k,CPEE::ValueHelper::generate(v))
+            end
+          end
+        end
+      end
+
+      def augment_testset(tdoc,p)
+        tdoc = XML::Smart.string(tdoc)
+        tdoc.register_namespace 'desc', 'http://cpee.org/ns/description/1.0'
+        tdoc.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
+        tdoc.register_namespace 'sub', 'http://riddl.org/ns/common-patterns/notifications-producer/2.0'
+
+        if data = p.find{ |e| e.name == 'init' }&.value
+          add_to_testset(tdoc,'dataelements',data)
+        end
+        if data = p.find{ |e| e.name == 'endpoints' }&.value
+          add_to_testset(tdoc,'endpoints',data)
+        end
+        if data = p.find{ |e| e.name == 'attributes' }&.value
+          add_to_testset(tdoc,'attributes',data)
+        end
+        tdoc
+      end
+
+      def load_testset(doc,cpee,name=nil,customization=nil) #{{{
         ins = -1
         uuid = nil
-        XML::Smart.string(tdoc) do |doc|
-          doc.register_namespace 'desc', 'http://cpee.org/ns/description/1.0'
-          doc.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
 
-          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-          res = srv.resource('/')
-          if name
-            doc.find('/*/prop:attributes/prop:info').each do |e|
-              e.text = name
-            end
+        srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
+        res = srv.resource('/')
+        if name
+          doc.find('/*/prop:attributes/prop:info').each do |e|
+            e.text = name
           end
-          if customization && !customization.empty?
-            JSON.parse(customization).each do |e|
-              begin
-                customization = Typhoeus.get e['url']
-                if customization.success?
-                  XML::Smart::string(customization.response_body) do |str|
-                    doc.find("//desc:call[@id=\"#{e['id']}\"]/desc:parameters/desc:customization").each do |ele|
-                      ele.replace_by str.root
-                    end
+        end
+        if customization && !customization.empty?
+          JSON.parse(customization).each do |e|
+            begin
+              customization = Typhoeus.get e['url']
+              if customization.success?
+                XML::Smart::string(customization.response_body) do |str|
+                  doc.find("//desc:call[@id=\"#{e['id']}\"]/desc:parameters/desc:customization").each do |ele|
+                    ele.replace_by str.root
                   end
                 end
-              rescue => e
-                puts e.message
-                puts e.backtrace
+              end
+            rescue => e
+              puts e.message
+              puts e.backtrace
+            end
+          end
+        end
+
+        status, response, headers = res.post Riddl::Parameter::Simple.new('info',doc.find('string(/*/prop:attributes/prop:info)'))
+
+        if status == 200
+          ins = response.first.value
+          uuid = headers['CPEE_INSTANCE_UUID']
+
+          inp = XML::Smart::string('<properties xmlns="http://cpee.org/ns/properties/2.0"/>')
+          inp.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
+          %w{executionhandler positions dataelements endpoints attributes description transformation}.each do |item|
+            ele = doc.find("/*/prop:#{item}")
+            inp.root.add(ele.first) if ele.any?
+          end
+
+          res = srv.resource("/#{ins}/properties").put Riddl::Parameter::Complex.new('properties','application/xml',inp.to_s)
+          # TODO new versions
+          doc.find('/*/sub:subscriptions/sub:subscription').each do |s|
+            parts = []
+            if id = s.attributes['id']
+              parts << Riddl::Parameter::Simple.new('id', id)
+            end
+            parts << Riddl::Parameter::Simple.new('url', s.attributes['url'])
+            s.find('sub:topic').each do |t|
+              if (evs = t.find('sub:event').map{ |e| e.text }.join(',')).length > 0
+                parts <<  Riddl::Parameter::Simple.new('topic', t.attributes['id'])
+                parts <<  Riddl::Parameter::Simple.new('events', evs)
+              end
+              if (vos = t.find('sub:vote').map{ |e| e.text }.join(',')).length > 0
+                parts <<  Riddl::Parameter::Simple.new('topic', t.attributes['id'])
+                parts <<  Riddl::Parameter::Simple.new('votes', vos)
               end
             end
-          end
-
-          status, response, headers = res.post Riddl::Parameter::Simple.new('info',doc.find('string(/*/prop:attributes/prop:info)'))
-
-          if status == 200
-            ins = response.first.value
-            uuid = headers['CPEE_INSTANCE_UUID']
-
-            inp = XML::Smart::string('<properties xmlns="http://cpee.org/ns/properties/2.0"/>')
-            inp.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
-            %w{handlerwrapper positions dataelements endpoints attributes description transformation}.each do |item|
-              ele = doc.find("/*/prop:#{item}")
-              inp.root.add(ele.first) if ele.any?
-            end
-            res = srv.resource("/#{ins}/properties").put Riddl::Parameter::Complex.new('properties','application/xml',inp.to_s)
-            doc.find('/*/prop:handlers/prop:handler').each do |han|
-              url =  han.attributes['url']
-              inp = 'url=' + URI.encode_www_form_component(url)
-              inp = inp + '&topic=' + han.children.first.attributes['topic']
-              inp = inp + '&' + han.children.first.qname.to_s + '=' + han.children.first.to_s
-              status,body = Riddl::Client::new(cpee+ins+'/notifications/subscriptions/').post(
-                [
-                  Riddl::Parameter::Simple.new('url',han.attributes['url']),
-                  Riddl::Parameter::Simple.new('topic',han.children.first.attributes['topic']),
-                  Riddl::Parameter::Simple.new(han.children.first.qname.to_s,han.children.first.to_s)
-                ]
-              )
-            end
-          end
+            status,body = Riddl::Client::new(cpee+ins+'/notifications/subscriptions/').post parts
+          end rescue nil # in case just no subs are there
         end
         [ins, uuid]
       end #}}}
@@ -117,6 +157,7 @@ module CPEE
       private :handle_waiting
       def handle_starting(cpee,instance,behavior) #{{{
         if behavior =~ /_running$/
+          sleep 0.5
           srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
           res = srv.resource("/#{instance}/properties/state")
           status, response = res.put [
@@ -129,7 +170,7 @@ module CPEE
         if data && !data.empty?
           content = XML::Smart.string('<dataelements xmlns="http://cpee.org/ns/properties/2.0"/>')
           JSON::parse(data).each do |k,v|
-            content.root.add(k,v)
+            content.root.add(k,CPEE::ValueHelper::generate(v))
           end
           srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
           res = srv.resource("/#{instance}/properties/dataelements/")
@@ -151,6 +192,19 @@ module CPEE
           ]
         end rescue nil
       end #}}}
+      def handle_attributes(cpee,instance,data) #{{{
+        if data && !data.empty?
+          content = XML::Smart.string('<attributes xmlns="http://cpee.org/ns/properties/2.0"/>')
+          JSON::parse(data).each do |k,v|
+            content.root.add(k,v)
+          end
+          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
+          res = srv.resource("/#{instance}/properties/attributes/")
+          status, response = res.patch [
+            Riddl::Parameter::Complex.new('attributes','text/xml',content.to_s)
+          ]
+        end rescue nil
+      end #}}}
     end #}}}
 
     class InstantiateGit < Riddl::Implementation #{{{
@@ -168,14 +222,12 @@ module CPEE
           (@status = 500) && return
         end
         customization = @p.find{ |e| e.name == 'customization' }&.value
+
+        tdoc = augment_testset(tdoc,@p)
         if (instance, uuid = load_testset(tdoc,cpee,nil,customization)).first == -1
           @status = 500
         else
           EM.defer do
-            handle_data cpee, instance, @p[4]&.value if @p[4]&.name == 'init'
-            handle_endpoints cpee, instance, @p[4]&.value if @p[4]&.name == 'endpoints'
-            handle_endpoints cpee, instance, @p[5]&.value if @p[5]&.name == 'endpoints'
-
             handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
             handle_starting cpee, instance, @p[0].value
           end
@@ -211,14 +263,12 @@ module CPEE
           (@status = 500) && return
         end
         customization = @p.find{ |e| e.name == 'customization' }&.value
+
+        tdoc = augment_testset(tdoc,@p)
         if (instance, uuid = load_testset(tdoc,cpee,name,customization)).first == -1
           @status = 500
         else
           EM.defer do
-            handle_data cpee, instance, @p[2]&.value if @p[2]&.name == 'init'
-            handle_endpoints cpee, instance, @p[2]&.value if @p[2]&.name == 'endpoints'
-            handle_endpoints cpee, instance, @p[3]&.value if @p[3]&.name == 'endpoints'
-
             handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
             handle_starting cpee, instance, @p[0].value
           end
@@ -253,11 +303,11 @@ module CPEE
           @p[data].value.read
         end
 
+        tdoc = augment_testset(tdoc,@p)
         if (instance, uuid = load_testset(tdoc,cpee)).first == -1
           @status = 500
         else
           EM.defer do
-            handle_data cpee, instance, @p[data+1]&.value
             handle_waiting cpee, instance, uuid, behavior, selfurl, cblist
             handle_starting cpee, instance, behavior
           end
@@ -285,19 +335,29 @@ module CPEE
         cblist   = @a[2]
         instance = @p[1].value
 
-        srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-        res = srv.resource("/#{instance}/properties/attributes/uuid")
+        srv = Riddl::Client.new(cpee)
+        res = srv.resource("/#{instance}/properties/attributes/uuid/")
         status, response = res.get
 
         if status >= 200 && status < 300
-          uuid = XML::Smart::string(response.first.value).root.text
+          uuid = response.first.value
           handle_data cpee, instance, @p[2]&.value
           handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
           handle_starting cpee, instance, @p[0].value
+
+          send = {
+            'CPEE-INSTANCE' => instance,
+            'CPEE-INSTANCE-URL' => File.join(cpee,instance),
+            'CPEE-INSTANCE-UUID' => uuid,
+            'CPEE-BEHAVIOR' => @p[0].value
+          }
+
           if @p[0].value =~ /^wait/
             @headers << Riddl::Header.new('CPEE-CALLBACK','true')
           end
-          return Riddl::Parameter::Simple.new("url",cpee + instance)
+          Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
+        else
+          @status = 500
         end
       end
     end #}}}
@@ -367,7 +427,7 @@ module CPEE
             run InstantiateGit, opts[:cpee], opts[:self], opts[:cblist] if post 'git'
           end
           on resource 'instance' do
-            run HandleInstance, opts[:cpee] if post 'instance'
+            run HandleInstance, opts[:cpee], opts[:self], opts[:cblist] if post 'instance'
           end
           on resource 'callback' do
             on resource do

@@ -4,7 +4,7 @@ To install the instatiation service go to the commandline
 
 ```bash
  gem install cpee-instantiation
- cpee-instantiation instantiation
+ cpee-instantiation new instantiation
  cd instantiation
  ./instantiation start
 ```

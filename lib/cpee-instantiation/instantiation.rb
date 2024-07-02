@@ -71,7 +71,7 @@ module CPEE
         ins = -1
         uuid = nil
 
-        srv = Riddl::Client.new(cpee)
+        srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
         res = srv.resource('/')
         if name
           doc.find('/*/prop:attributes/prop:info').each do |e|
@@ -306,9 +306,7 @@ module CPEE
         tdoc = augment_testset(tdoc,@p)
         if (instance, uuid = load_testset(tdoc,cpee)).first == -1
           @status = 500
-          p 'rrrr1'
         else
-          p 'rrrr2'
           EM.defer do
             handle_waiting cpee, instance, uuid, behavior, selfurl, cblist
             handle_starting cpee, instance, behavior

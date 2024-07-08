@@ -1,18 +1,18 @@
 # This file is part of CPEE-INSTANTIATION.
 #
 # CPEE-INSTANTIATION is free software: you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# under the terms of the GNU Lesser General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
 # CPEE-INSTANTIATION is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
-# more details.
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License
+# for more details.
 #
-# You should have received a copy of the GNU General Public License along with
-# CPEE-INSTANTIATION (file LICENSE in the main directory).  If not, see
-# <http://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU Lesser General Public License
+# along with CPEE-INSTANTIATION (file LICENSE in the main directory).  If not,
+# see <http://www.gnu.org/licenses/>.
 
 require 'rubygems'
 require 'cpee/value_helper'
@@ -288,15 +288,18 @@ module CPEE
       end
     end  #}}}
 
-    class InstantiateXML < Riddl::Implementation #{{{
+class InstantiateXML < Riddl::Implementation #{{{
       include Helpers
 
       def response
+        puts "InstantiateXML response method called: #{@a[1]}",
         cpee     = @h['X_CPEE'] || @a[0]
         behavior = @a[1] ? 'fork_ready' : @p[0].value
         data     = @a[1] ? 0 : 1
         selfurl  = @a[2]
         cblist   = @a[3]
+        puts "Received data: #{@p}"
+        puts "p[data]: #{@p[data]}"
         tdoc = if @p[data].additional =~ /base64/
           Base64.decode64(@p[data].value.read)
         else
@@ -405,7 +408,8 @@ module CPEE
           ]
         end
       end
-    end #}}}
+
+end #}}}
 
     def self::implementation(opts)
       opts[:cpee]       ||= 'http://localhost:9298/'

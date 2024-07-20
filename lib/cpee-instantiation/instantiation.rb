@@ -431,7 +431,7 @@ end #}}}
       opts[:redis_pid]                  ||= 'redis.pid' # use e.g. /var/run/redis.pid if you do global. Look it up in your redis config
       opts[:redis_db_name]              ||= 'redis.rdb' # use e.g. /var/lib/redis.rdb for global stuff. Look it up in your redis config
 
-      opts[:cblist]                     = CPEE::redis_connect opts, 'Instantiation'
+      CPEE::redis_connect opts, 'Instantiation'
 
       Proc.new do
         parallel do
@@ -447,18 +447,18 @@ end #}}}
             run InstantiateXML, opts[:cpee], false if post 'xml'
           end
           on resource 'url' do
-            run InstantiateUrl, opts[:cpee], opts[:self], opts[:cblist], false if post 'url'
-            run InstantiateUrl, opts[:cpee], opts[:self], opts[:cblist], true  if post 'url_info'
+            run InstantiateUrl, opts[:cpee], opts[:self], opts[:redis], false if post 'url'
+            run InstantiateUrl, opts[:cpee], opts[:self], opts[:redis], true  if post 'url_info'
           end
           on resource 'git' do
-            run InstantiateGit, opts[:cpee], opts[:self], opts[:cblist] if post 'git'
+            run InstantiateGit, opts[:cpee], opts[:self], opts[:redis] if post 'git'
           end
           on resource 'instance' do
-            run HandleInstance, opts[:cpee], opts[:self], opts[:cblist] if post 'instance'
+            run HandleInstance, opts[:cpee], opts[:self], opts[:redis] if post 'instance'
           end
           on resource 'callback' do
             on resource do
-              run ContinueTask, opts[:cpee], opts[:cblist] if post
+              run ContinueTask, opts[:cpee], opts[:redis] if post
             end
           end
         end

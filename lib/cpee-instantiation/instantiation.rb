@@ -16,6 +16,7 @@
 
 require 'rubygems'
 require 'cpee/value_helper'
+require 'cpee/redis'
 require 'xml/smart'
 require 'riddl/server'
 require 'securerandom'
@@ -23,6 +24,8 @@ require 'base64'
 require 'uri'
 require 'redis'
 require 'json'
+
+require_relative 'utils'
 
 module CPEE
   module Instantiation
@@ -413,11 +416,31 @@ end #}}}
 
     def self::implementation(opts)
       opts[:cpee]       ||= 'http://localhost:9298/'
-      opts[:redis_path] ||= '/tmp/redis.sock'
-      opts[:redis_db]   ||= 14
       opts[:self]       ||= "http#{opts[:secure] ? 's' : ''}://#{opts[:host]}:#{opts[:port]}/"
-      opts[:cblist]       = Redis.new(path: opts[:redis_path], db: opts[:redis_db])
+
+      opts[:watchdog_frequency]         ||= 7
+      opts[:watchdog_start_off]         ||= false
+
+      ### set redis_cmd to nil if you want to do global
+      ### at least redis_path or redis_url and redis_db have to be set if you do global
+      opts[:redis_path]                 ||= 'redis.sock' # use e.g. /tmp/redis.sock for global stuff. Look it up in your redis config
+      opts[:redis_db]                   ||= 0
+      ### optional redis stuff
+      opts[:redis_url]                  ||= nil
+      opts[:redis_cmd]                  ||= 'redis-server --port 0 --unixsocket #redis_path# --unixsocketperm 600 --pidfile #redis_pid# --dir #redis_db_dir# --dbfilename #redis_db_name# --databases 1 --save 900 1 --save 300 10 --save 60 10000 --rdbcompression yes --daemonize yes'
+      opts[:redis_pid]                  ||= 'redis.pid' # use e.g. /var/run/redis.pid if you do global. Look it up in your redis config
+      opts[:redis_db_name]              ||= 'redis.rdb' # use e.g. /var/lib/redis.rdb for global stuff. Look it up in your redis config
+
+      opts[:cblist]                     = CPEE::redis_connect opts, 'Instantiation'
+
       Proc.new do
+        parallel do
+          CPEE::Instantiation::watch_services(opts[:watchdog_start_off],opts[:redis_url],File.join(opts[:basepath],opts[:redis_path]),opts[:redis_db])
+          EM.add_periodic_timer(opts[:watchdog_frequency]) do ### start services
+            CPEE::Instantiation::watch_services(opts[:watchdog_start_off],opts[:redis_url],File.join(opts[:basepath],opts[:redis_path]),opts[:redis_db])
+          end
+        end
+
         on resource do
           run InstantiateXML, opts[:cpee], true if post 'xmlsimple'
           on resource 'xml' do

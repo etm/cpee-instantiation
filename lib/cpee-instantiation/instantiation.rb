@@ -327,6 +327,7 @@ class InstantiateXML < Riddl::Implementation #{{{
           if @p[0].value =~ /^wait/
             @headers << Riddl::Header.new('CPEE-CALLBACK','true')
           end
+          @headers << Riddl::Header.new('CPEE-INSTANTIATION',JSON::generate(send))
           Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
         end
       end

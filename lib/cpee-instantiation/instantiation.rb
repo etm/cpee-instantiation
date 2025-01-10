@@ -74,7 +74,7 @@ module CPEE
         ins = -1
         uuid = nil
 
-        srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
+        srv = Riddl::Client.new(cpee)
         res = srv.resource('/')
         if name
           doc.find('/*/prop:attributes/prop:info').each do |e|
@@ -112,7 +112,7 @@ module CPEE
             inp.root.add(ele.first) if ele.any?
           end
 
-          res = srv.resource("/#{ins}/properties").put Riddl::Parameter::Complex.new('properties','application/xml',inp.to_s)
+          res = srv.resource("/#{ins}/properties/").put Riddl::Parameter::Complex.new('properties','application/xml',inp.to_s)
           # TODO new versions
           doc.find('/*/sub:subscriptions/sub:subscription').each do |s|
             parts = []

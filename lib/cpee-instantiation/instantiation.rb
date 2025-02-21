@@ -223,7 +223,6 @@ module CPEE
         end
 
         doc = augment_testset(tdoc,@p)
-        customize_testset(customization,doc)
         cbk, condition = add_waiting_to_testset(behavior,@h['CPEE_CALLBACK'],doc,selfurl)
         add_running_to_testset(behavior,doc)
 

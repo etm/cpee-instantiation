@@ -25,6 +25,8 @@ require 'uri'
 require 'redis'
 require 'json'
 
+require 'pry'
+
 require_relative 'utils'
 
 module CPEE
@@ -33,7 +35,8 @@ module CPEE
     SERVER = File.expand_path(File.join(__dir__,'instantiation.xml'))
 
     module Helpers #{{{
-      def add_to_testset(tdoc,what,data)
+
+      def add_to_testset(tdoc,what,data) #{{{
         if data && !data.empty?
           JSON::parse(data).each do |k,v|
             ele = tdoc.find("/*/prop:#{what}/prop:#{k}")
@@ -50,9 +53,9 @@ module CPEE
             end
           end
         end
-      end
+      end #}}}
 
-      def augment_testset(tdoc,p)
+      def augment_testset(tdoc,p) #{{{
         tdoc = XML::Smart.string(tdoc)
         tdoc.register_namespace 'desc', 'http://cpee.org/ns/description/1.0'
         tdoc.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
@@ -68,19 +71,9 @@ module CPEE
           add_to_testset(tdoc,'attributes',data)
         end
         tdoc
-      end
+      end #}}}
 
-      def load_testset(doc,cpee,name=nil,customization=nil) #{{{
-        ins = -1
-        uuid = nil
-
-        srv = Riddl::Client.new(cpee)
-        res = srv.resource('/')
-        if name
-          doc.find('/*/prop:attributes/prop:info').each do |e|
-            e.text = name
-          end
-        end
+      def customize_testset(customization,doc) #{{{
         if customization && !customization.empty?
           JSON.parse(customization).each do |e|
             begin
@@ -98,125 +91,76 @@ module CPEE
             end
           end
         end
+      end   #}}}
 
-        status, response, headers = res.post Riddl::Parameter::Simple.new('info',doc.find('string(/*/prop:attributes/prop:info)'))
-
-        if status == 200
-          ins = response.first.value
-          uuid = headers['CPEE_INSTANCE_UUID']
-
-          inp = XML::Smart::string('<properties xmlns="http://cpee.org/ns/properties/2.0"/>')
-          inp.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
-          %w{executionhandler positions dataelements endpoints attributes description transformation}.each do |item|
-            ele = doc.find("/*/prop:#{item}")
-            inp.root.add(ele.first) if ele.any?
-          end
-
-          res = srv.resource("/#{ins}/properties/").put Riddl::Parameter::Complex.new('properties','application/xml',inp.to_s)
-          # TODO new versions
-          doc.find('/*/sub:subscriptions/sub:subscription').each do |s|
-            parts = []
-            if id = s.attributes['id']
-              parts << Riddl::Parameter::Simple.new('id', id)
-            end
-            parts << Riddl::Parameter::Simple.new('url', s.attributes['url'])
-            s.find('sub:topic').each do |t|
-              if (evs = t.find('sub:event').map{ |e| e.text }.join(',')).length > 0
-                parts <<  Riddl::Parameter::Simple.new('topic', t.attributes['id'])
-                parts <<  Riddl::Parameter::Simple.new('events', evs)
-              end
-              if (vos = t.find('sub:vote').map{ |e| e.text }.join(',')).length > 0
-                parts <<  Riddl::Parameter::Simple.new('topic', t.attributes['id'])
-                parts <<  Riddl::Parameter::Simple.new('votes', vos)
-              end
-            end
-            status,body = Riddl::Client::new(cpee+ins+'/notifications/subscriptions/').post parts
-          end rescue nil # in case just no subs are there
-        end
-        [ins, uuid]
-      end #}}}
-      private :load_testset
-      def handle_waiting(cpee,instance,uuid,behavior,selfurl,cblist) #{{{
+      def add_waiting_to_testset(behavior,cb,doc,selfurl) #{{{
+        ckb = nil
         if behavior =~ /^wait/
           condition = behavior.match(/_([^_]+)_/)&.[](1) || 'finished'
-          cb = @h['CPEE_CALLBACK']
 
           if cb
-            cbk = SecureRandom.uuid
-            srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-            status, response = srv.resource("/#{instance}/notifications/subscriptions/").post [
-              Riddl::Parameter::Simple.new('url',File.join(selfurl,'callback',cbk)),
-              Riddl::Parameter::Simple.new('topic','state'),
-              Riddl::Parameter::Simple.new('events','change')
-            ]
+            cbk = '_instantiation_' + Digest::MD5.hexdigest(Kernel::rand().to_s)
+            n = doc.find('/*/sub:subscriptions') rescue []
+            if (n.empty?)
+              n = doc.root.add('subscriptions')
+              n.namespaces.add(nil,'http://riddl.org/ns/common-patterns/notifications-producer/2.0')
+            end
+            n.append('subscription', :id => cbk, :url => File.join(selfurl,'callback',cbk))
+             .append('topic', :id => 'state')
+             .append('event','change')
+          end
+        end
+        [cbk, condition]
+      end   #}}}
+
+      def add_running_to_testset(behavior,doc) #{{{
+        if behavior =~ /_running$/
+          if ((doc.find('/*/prop:state')).empty?)
+            doc.root.append('prop:state','running')
+          else
+            doc.find('/*/prop:state').first.text = 'running'
+          end
+        end
+      end   #}}}
+
+      def instantiate_testset(cpee,doc,behavior,cblist,cbk,cb,condition) #{{{
+        status, res, headers = Riddl::Client.new(cpee).post Riddl::Parameter::Complex.new('testset', 'application/xml', doc.to_s)
+        if status == 200
+          instance = res.first.value
+          uuid = headers['CPEE_INSTANCE_UUID']
+
+          if cbk
             cblist.rpush(cbk, cb)
             cblist.rpush(cbk, condition)
             cblist.rpush(cbk, instance)
             cblist.rpush(cbk, uuid)
             cblist.rpush(cbk, File.join(cpee,instance))
+            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
           end
+
+          send = {
+            'CPEE-INSTANCE' => instance,
+            'CPEE-INSTANCE-URL' => File.join(cpee,instance),
+            'CPEE-INSTANCE-UUID' => uuid,
+            'CPEE-BEHAVIOR' => behavior
+          }
+          @headers << Riddl::Header.new('CPEE-INSTANTIATION',JSON::generate(send))
+          Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
+        else
+          @status = 500
         end
       end #}}}
-      private :handle_waiting
-      def handle_starting(cpee,instance,behavior) #{{{
-        if behavior =~ /_running$/
-          sleep 0.5
-          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-          res = srv.resource("/#{instance}/properties/state")
-          status, response = res.put [
-            Riddl::Parameter::Simple.new('value','running')
-          ]
-        end
-      end #}}}
-      private :handle_starting
-      def handle_data(cpee,instance,data) #{{{
-        if data && !data.empty?
-          content = XML::Smart.string('<dataelements xmlns="http://cpee.org/ns/properties/2.0"/>')
-          JSON::parse(data).each do |k,v|
-            content.root.add(k,CPEE::ValueHelper::generate(v))
-          end
-          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-          res = srv.resource("/#{instance}/properties/dataelements/")
-          status, response = res.patch [
-            Riddl::Parameter::Complex.new('dataelements','text/xml',content.to_s)
-          ]
-        end rescue nil
-      end #}}}
-      def handle_endpoints(cpee,instance,data) #{{{
-        if data && !data.empty?
-          content = XML::Smart.string('<endpoints xmlns="http://cpee.org/ns/properties/2.0"/>')
-          JSON::parse(data).each do |k,v|
-            content.root.add(k,v)
-          end
-          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-          res = srv.resource("/#{instance}/properties/endpoints/")
-          status, response = res.patch [
-            Riddl::Parameter::Complex.new('endpoints','text/xml',content.to_s)
-          ]
-        end rescue nil
-      end #}}}
-      def handle_attributes(cpee,instance,data) #{{{
-        if data && !data.empty?
-          content = XML::Smart.string('<attributes xmlns="http://cpee.org/ns/properties/2.0"/>')
-          JSON::parse(data).each do |k,v|
-            content.root.add(k,v)
-          end
-          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
-          res = srv.resource("/#{instance}/properties/attributes/")
-          status, response = res.patch [
-            Riddl::Parameter::Complex.new('attributes','text/xml',content.to_s)
-          ]
-        end rescue nil
-      end #}}}
+
     end #}}}
 
     class InstantiateGit < Riddl::Implementation #{{{
       include Helpers
 
       def response
-        cpee = @h['X_CPEE'] || @a[0]
-        selfurl = @a[1]
-        cblist = @a[2]
+        cpee     = @h['X_CPEE'] || @a[0]
+        selfurl  = @a[1]
+        cblist   = @a[2]
+        behavior = @p[0].value
 
         status, res = Riddl::Client.new(File.join(@p[1].value,'raw',@p[2].value,@p[3].value).gsub(/ /,'%20')).get
         tdoc = if status >= 200 && status < 300
@@ -226,27 +170,12 @@ module CPEE
         end
         customization = @p.find{ |e| e.name == 'customization' }&.value
 
-        tdoc = augment_testset(tdoc,@p)
-        if (instance, uuid = load_testset(tdoc,cpee,nil,customization)).first == -1
-          @status = 500
-        else
-          EM.defer do
-            handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
-            handle_starting cpee, instance, @p[0].value
-          end
+        doc = augment_testset(tdoc,@p)
+        customize_testset(customization,doc)
+        cbk, condition = add_waiting_to_testset(behavior,@h['CPEE_CALLBACK'],doc,selfurl)
+        add_running_to_testset(behavior,doc)
 
-          send = {
-            'CPEE-INSTANCE' => instance,
-            'CPEE-INSTANCE-URL' => File.join(cpee,instance),
-            'CPEE-INSTANCE-UUID' => uuid,
-            'CPEE-BEHAVIOR' => @p[0].value
-          }
-          if @p[0].value =~ /^wait/
-            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
-          end
-          @headers << Riddl::Header.new('CPEE-INSTANTIATION',JSON::generate(send))
-          Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
-        end
+        instantiate_testset(cpee,doc,@p[0].value,cblist,cbk,@h['CPEE_CALLBACK'],condition)
       end
     end  #}}}
 
@@ -254,10 +183,11 @@ module CPEE
       include Helpers
 
       def response
-        cpee    = @h['X_CPEE'] || @a[0]
-        selfurl = @a[1]
-        cblist  = @a[2]
-        name    = @a[3] ? @p.shift.value : nil
+        cpee     = @h['X_CPEE'] || @a[0]
+        selfurl  = @a[1]
+        cblist   = @a[2]
+        name     = @a[3] ? @p.shift.value : nil
+        behavior = @p[0].value
 
         status, res = Riddl::Client.new(@p[1].value.gsub(/ /,'%20')).get
         tdoc = if status >= 200 && status < 300
@@ -267,31 +197,16 @@ module CPEE
         end
         customization = @p.find{ |e| e.name == 'customization' }&.value
 
-        tdoc = augment_testset(tdoc,@p)
-        if (instance, uuid = load_testset(tdoc,cpee,name,customization)).first == -1
-          @status = 500
-        else
-          EM.defer do
-            handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
-            handle_starting cpee, instance, @p[0].value
-          end
+        doc = augment_testset(tdoc,@p)
+        customize_testset(customization,doc)
+        cbk, condition = add_waiting_to_testset(behavior,@h['CPEE_CALLBACK'],doc,selfurl)
+        add_running_to_testset(behavior,doc)
 
-          send = {
-            'CPEE-INSTANCE' => instance,
-            'CPEE-INSTANCE-URL' => File.join(cpee,instance),
-            'CPEE-INSTANCE-UUID' => uuid,
-            'CPEE-BEHAVIOR' => @p[0].value
-          }
-          if @p[0].value =~ /^wait/
-            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
-          end
-          @headers << Riddl::Header.new('CPEE-INSTANTIATION',JSON::generate(send))
-          Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
-        end
+        instantiate_testset(cpee,doc,@p[0].value,cblist,cbk,@h['CPEE_CALLBACK'],condition)
       end
-    end  #}}}
+     end  #}}}
 
-class InstantiateXML < Riddl::Implementation #{{{
+    class InstantiateXML < Riddl::Implementation #{{{
       include Helpers
 
       def response
@@ -301,71 +216,18 @@ class InstantiateXML < Riddl::Implementation #{{{
         data     = @a[1] ? 0 : 1
         selfurl  = @a[2]
         cblist   = @a[3]
-        puts "Received data: #{@p}"
-        puts "p[data]: #{@p[data]}"
         tdoc = if @p[data].additional =~ /base64/
           Base64.decode64(@p[data].value.read)
         else
           @p[data].value.read
         end
 
-        tdoc = augment_testset(tdoc,@p)
-        if (instance, uuid = load_testset(tdoc,cpee)).first == -1
-          @status = 500
-        else
-          EM.defer do
-            handle_waiting cpee, instance, uuid, behavior, selfurl, cblist
-            handle_starting cpee, instance, behavior
-          end
+        doc = augment_testset(tdoc,@p)
+        customize_testset(customization,doc)
+        cbk, condition = add_waiting_to_testset(behavior,@h['CPEE_CALLBACK'],doc,selfurl)
+        add_running_to_testset(behavior,doc)
 
-          send = {
-            'CPEE-INSTANCE' => instance,
-            'CPEE-INSTANCE-URL' => File.join(cpee,instance),
-            'CPEE-INSTANCE-UUID' => uuid,
-            'CPEE-BEHAVIOR' => behavior
-          }
-          if @p[0].value =~ /^wait/
-            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
-          end
-          @headers << Riddl::Header.new('CPEE-INSTANTIATION',JSON::generate(send))
-          Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
-        end
-      end
-    end #}}}
-
-    class HandleInstance < Riddl::Implementation #{{{
-      include Helpers
-
-      def response
-        cpee     = @h['X_CPEE'] || @a[0]
-        selfurl  = @a[1]
-        cblist   = @a[2]
-        instance = @p[1].value
-
-        srv = Riddl::Client.new(cpee)
-        res = srv.resource("/#{instance}/properties/attributes/uuid/")
-        status, response = res.get
-
-        if status >= 200 && status < 300
-          uuid = response.first.value
-          handle_data cpee, instance, @p[2]&.value
-          handle_waiting cpee, instance, uuid, @p[0].value, selfurl, cblist
-          handle_starting cpee, instance, @p[0].value
-
-          send = {
-            'CPEE-INSTANCE' => instance,
-            'CPEE-INSTANCE-URL' => File.join(cpee,instance),
-            'CPEE-INSTANCE-UUID' => uuid,
-            'CPEE-BEHAVIOR' => @p[0].value
-          }
-
-          if @p[0].value =~ /^wait/
-            @headers << Riddl::Header.new('CPEE-CALLBACK','true')
-          end
-          Riddl::Parameter::Complex.new('instance','application/json',JSON::generate(send))
-        else
-          @status = 500
-        end
+        instantiate_testset(cpee,doc,@p[0].value,cblist,cbk,@h['CPEE_CALLBACK'],condition)
       end
     end #}}}
 
@@ -394,7 +256,7 @@ class InstantiateXML < Riddl::Implementation #{{{
 
         if notification['content']['state'] == condition
           cblist.del(key)
-          srv = Riddl::Client.new(cpee, File.join(cpee,'?riddl-description'))
+          srv = Riddl::Client.new(cpee)
           res = srv.resource("/#{instance}/properties/dataelements")
           status, response = res.get
           if status >= 200 && status < 300
@@ -413,7 +275,7 @@ class InstantiateXML < Riddl::Implementation #{{{
         end
       end
 
-end #}}}
+    end #}}}
 
     def self::implementation(opts)
       opts[:cpee]       ||= 'http://localhost:9298/'
@@ -453,9 +315,6 @@ end #}}}
           end
           on resource 'git' do
             run InstantiateGit, opts[:cpee], opts[:self], opts[:redis] if post 'git'
-          end
-          on resource 'instance' do
-            run HandleInstance, opts[:cpee], opts[:self], opts[:redis] if post 'instance'
           end
           on resource 'callback' do
             on resource do

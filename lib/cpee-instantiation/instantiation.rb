@@ -25,8 +25,6 @@ require 'uri'
 require 'redis'
 require 'json'
 
-require 'pry'
-
 require_relative 'utils'
 
 module CPEE
@@ -210,7 +208,6 @@ module CPEE
       include Helpers
 
       def response
-        puts "InstantiateXML response method called: #{@a[1]}",
         cpee     = @h['X_CPEE'] || @a[0]
         behavior = @a[1] ? 'fork_ready' : @p[0].value
         data     = @a[1] ? 0 : 1

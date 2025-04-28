@@ -97,11 +97,13 @@ module CPEE
           condition = behavior.match(/_([^_]+)_/)&.[](1) || 'finished'
 
           if cb
-            cbk = '_instantiation_' + Digest::MD5.hexdigest(Kernel::rand().to_s)
+            cbk = 'instantiation_' + Digest::MD5.hexdigest(Kernel::rand().to_s)
             n = doc.find('/*/sub:subscriptions') rescue []
             if (n.empty?)
               n = doc.root.add('subscriptions')
               n.namespaces.add(nil,'http://riddl.org/ns/common-patterns/notifications-producer/2.0')
+            else
+              n = n.first
             end
             n.append('subscription', :id => cbk, :url => File.join(selfurl,'callback',cbk))
              .append('topic', :id => 'state')
@@ -240,6 +242,8 @@ module CPEE
 
         key = @r.last
         cb, condition, instance, uuid, instance_url = cblist.lrange(key,0,-1)
+
+        return if cb.nil?
 
         cpee = File.dirname(instance_url)
 

@@ -36,7 +36,8 @@ module CPEE
 
       def add_to_testset(tdoc,what,data) #{{{
         if data && !data.empty?
-          JSON::parse(data).each do |k,v|
+          data = JSON::parse(data) if data.is_a? String
+          data.each do |k,v|
             ele = tdoc.find("/*/prop:#{what}/prop:#{k}")
             if ele.any?
               ele.first.text = CPEE::ValueHelper::generate(v)
@@ -53,7 +54,7 @@ module CPEE
         end
       end #}}}
 
-      def augment_testset(tdoc,p) #{{{
+      def augment_testset(tdoc,p,h) #{{{
         tdoc = XML::Smart.string(tdoc)
         tdoc.register_namespace 'desc', 'http://cpee.org/ns/description/1.0'
         tdoc.register_namespace 'prop', 'http://cpee.org/ns/properties/2.0'
@@ -68,6 +69,13 @@ module CPEE
         if data = p.find{ |e| e.name == 'attributes' }&.value
           add_to_testset(tdoc,'attributes',data)
         end
+        data = {}
+        data['parent_instance']            = h['CPEE_INSTANCE']      if h['CPEE_INSTANCE']
+        data['parent_instance_uuid']       = h['CPEE_INSTANCE_UUID'] if h['CPEE_INSTANCE_UUID']
+        data['parent_instance_model']      = h['CPEE_ATTR_INFO']     if h['CPEE_ATTR_INFO']
+        data['parent_instance_task_id']    = h['CPEE_ACTIVITY']      if h['CPEE_ACTIVITY']
+        data['parent_instance_task_label'] = h['CPEE_LABEL']         if h['CPEE_LABEL']
+        add_to_testset(tdoc,'attributes',data)
         tdoc
       end #}}}
 
@@ -170,7 +178,7 @@ module CPEE
         end
         customization = @p.find{ |e| e.name == 'customization' }&.value
 
-        doc = augment_testset(tdoc,@p)
+        doc = augment_testset(tdoc,@p,@h)
         customize_testset(customization,doc)
         cbk, condition = add_waiting_to_testset(behavior,@h['CPEE_CALLBACK'],doc,selfurl)
         add_running_to_testset(behavior,doc)
@@ -197,7 +205,7 @@ module CPEE
         end
         customization = @p.find{ |e| e.name == 'customization' }&.value
 
-        doc = augment_testset(tdoc,@p)
+        doc = augment_testset(tdoc,@p,@h)
         customize_testset(customization,doc)
         cbk, condition = add_waiting_to_testset(behavior,@h['CPEE_CALLBACK'],doc,selfurl)
         add_running_to_testset(behavior,doc)
@@ -221,7 +229,7 @@ module CPEE
           @p[data].value.read
         end
 
-        doc = augment_testset(tdoc,@p)
+        doc = augment_testset(tdoc,@p,@h)
         cbk, condition = add_waiting_to_testset(behavior,@h['CPEE_CALLBACK'],doc,selfurl)
         add_running_to_testset(behavior,doc)
 

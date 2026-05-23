@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name             = "cpee-instantiation"
-  s.version          = "1.1.7"
+  s.version          = "1.1.8"
   s.platform         = Gem::Platform::RUBY
   s.license          = "LGPL-3.0-or-later"
   s.summary          = "Subprocess instantiation service for the cloud process execution engine (cpee.org)"
@@ -23,5 +23,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'riddl', '~> 1.0', '>= 1.0.10'
   s.add_runtime_dependency 'json', '~> 2.1'
   s.add_runtime_dependency 'redis', '~> 5.0'
-  s.add_runtime_dependency 'cpee', '~> 2.1', '>= 2.1.111'
+  s.add_runtime_dependency 'cpee', '~> 2.1', '>= 2.1.114'
 end

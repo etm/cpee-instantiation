@@ -14,7 +14,7 @@ host, or local-only access, ...), create a file instatiation.conf and add one
 or many of the following yaml keys:
 
 ```yaml
- :port: 9250
+ :port: 9296
  :host: cpee.org
  :bind: 127.0.0.1
  :cpee: http://localhost:9298/

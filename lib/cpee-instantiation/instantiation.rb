@@ -79,6 +79,17 @@ module CPEE
         tdoc
       end #}}}
 
+      def extract_urls(p) #{{{
+        p.select{ |e| e.name == 'url' }.map do |e|
+          v = e.value.to_s.strip
+          if v.start_with?('[')
+            JSON::parse(v) rescue [v]
+          else
+            [v]
+          end
+        end.flatten.map{ |u| u.to_s.strip }.reject(&:empty?)
+      end #}}}
+
       def customize_testset(customization,doc) #{{{
         if customization && !customization.empty?
           JSON.parse(customization).each do |e|
@@ -196,8 +207,10 @@ module CPEE
         cblist   = @a[2]
         name     = @a[3] ? @p.shift.value : nil
         behavior = @p[0].value
+        urls     = extract_urls(@p)
+        (@status = 400) && return if urls.empty?
 
-        status, res = Riddl::Client.new(@p[1].value.gsub(/ /,'%20')).get
+        status, res = Riddl::Client.new(urls.first.gsub(/ /,'%20')).get
         tdoc = if status >= 200 && status < 300
           res[0].value.read
         else

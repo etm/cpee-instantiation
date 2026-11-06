@@ -44,7 +44,9 @@
         <value>wait_running</value>
       </choice>
     </parameter>
-    <parameter name="url" type="string"/>
+    <oneOrMore>
+      <parameter name="url" type="string"/>
+    </oneOrMore>
     <optional>
       <parameter name="init" type="string"/>
     </optional>
@@ -67,7 +69,9 @@
         <value>wait_running</value>
       </choice>
     </parameter>
-    <parameter name="url" type="string"/>
+    <oneOrMore>
+      <parameter name="url" type="string"/>
+    </oneOrMore>
     <optional>
       <parameter name="init" type="string"/>
     </optional>
